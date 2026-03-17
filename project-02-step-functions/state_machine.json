@@ -1,0 +1,57 @@
+{
+  "Comment": "Claims adjudication workflow",
+  "StartAt": "ValidateClaim",
+  "States": {
+    "ValidateClaim": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:validate_claim",
+      "Next": "CheckEligibility",
+      "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "NotifyFailure", "ResultPath": "$.error"}]
+    },
+    "CheckEligibility": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:876163988503:function:check_eligibility",
+      "Next": "EligibilityChoice",
+      "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "NotifyFailure", "ResultPath": "$.error"}]
+    },
+    "EligibilityChoice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.eligible",
+          "BooleanEquals": false,
+          "Next": "DenyClaim"
+        }
+      ],
+      "Default": "CalculatePayment"
+    },
+    "CalculatePayment": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:calculate_payment",
+      "Next": "NotifyOutcome",
+      "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "NotifyFailure", "ResultPath": "$.error"}]
+    },
+    "DenyClaim": {
+      "Type": "Pass",
+      "Parameters": {
+        "outcome": "DENIED",
+        "denial_reason.$": "$.denial_reason",
+        "claim_id.$": "$.claim_id",
+        "amount.$": "$.amount",
+        "approved_amount": 0
+      },
+      "Next": "NotifyOutcome"
+    },
+    "NotifyOutcome": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:876163988503:function:notify_outcome",
+      "End": true,
+      "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "NotifyFailure", "ResultPath": "$.error"}]
+    },
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:876163988503:function:notify_outcome",
+      "End": true
+    }
+  }
+}
